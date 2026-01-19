@@ -1,0 +1,93 @@
+/**
+ * Simulation parameters for Kerr black hole visualization
+ */
+
+export const defaultParams = {
+    // Black hole parameters
+    blackHole: {
+        mass: 1.0,           // Normalized mass (M = 1)
+        spin: 0.9,           // Spin parameter a/M (0 = Schwarzschild, 1 = extremal Kerr)
+    },
+
+    // Camera parameters
+    camera: {
+        distance: 15.0,      // Distance from black hole in units of M
+        theta: Math.PI / 3,  // Polar angle (radians from pole, π/2 = equatorial)
+        phi: 0.0,            // Azimuthal angle
+        fov: 60.0,           // Field of view in degrees
+    },
+
+    // Ray marching parameters
+    rayMarching: {
+        maxSteps: 500,       // Maximum integration steps
+        stepSize: 0.1,       // Initial step size in units of M
+        minStepSize: 0.001,  // Minimum step size near horizon
+        maxDistance: 100.0,  // Maximum ray distance before termination
+        escapeRadius: 50.0,  // Radius at which ray is considered escaped
+    },
+
+    // Geodesic integrator parameters (Phase 2)
+    integrator: {
+        method: 'rk4',       // Integration method (rk4)
+        stepSize: 0.15,      // Base step size in units of M
+        adaptiveSteps: true, // Use adaptive step sizing
+        maxSteps: 800,       // Maximum integration steps per ray
+    },
+
+    // Accretion disk parameters (for later phases)
+    accretionDisk: {
+        innerRadius: null,   // Will be set to ISCO
+        outerRadius: 20.0,   // Outer edge in units of M
+        temperature: 1e7,    // Peak temperature in Kelvin
+        thickness: 0.1,      // Disk half-thickness ratio
+    },
+
+    // Rendering parameters
+    rendering: {
+        resolution: 1.0,     // Resolution multiplier (1.0 = native)
+        gammaCorrection: 2.2,
+        exposure: 1.0,
+        bloomEnabled: false,
+        bloomIntensity: 0.5,
+    },
+
+    // Animation parameters
+    animation: {
+        autoRotate: false,
+        rotationSpeed: 0.1,  // Radians per second
+        diskRotation: true,
+        diskAngularVelocity: 0.5, // Relative to Keplerian
+    },
+
+    // Debug parameters
+    debug: {
+        showEventHorizon: true,
+        showPhotonSphere: false,
+        showErgosphere: false,
+        showISCO: false,
+        showCoordinateGrid: false,
+        logPerformance: false,
+    }
+};
+
+/**
+ * Create a copy of params with custom overrides
+ */
+export function createParams(overrides = {}) {
+    return deepMerge(structuredClone(defaultParams), overrides);
+}
+
+/**
+ * Deep merge helper
+ */
+function deepMerge(target, source) {
+    for (const key in source) {
+        if (source[key] && typeof source[key] === 'object' && !Array.isArray(source[key])) {
+            target[key] = target[key] || {};
+            deepMerge(target[key], source[key]);
+        } else {
+            target[key] = source[key];
+        }
+    }
+    return target;
+}
