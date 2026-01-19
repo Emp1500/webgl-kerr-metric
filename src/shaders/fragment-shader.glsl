@@ -3,7 +3,7 @@ precision highp float;
 
 // ============================================================================
 // Fragment Shader for Kerr Black Hole Ray Marching
-// Phase 3: Accretion Disk with Relativistic Effects
+// Phase 4: Advanced Features (Photon Ring, Jets, Ergosphere)
 // ============================================================================
 
 // Include utility functions
@@ -17,6 +17,9 @@ precision highp float;
 
 // Include accretion disk physics
 #include "includes/accretion-disk.glsl"
+
+// Include advanced features (jets, ergosphere, photon ring)
+#include "includes/advanced-features.glsl"
 
 // ============================================================================
 // Uniforms
@@ -49,6 +52,10 @@ uniform float u_diskInnerRadius;
 uniform float u_diskOuterRadius;
 uniform float u_diskTemperature;
 uniform float u_diskThickness;
+
+// Advanced features
+uniform bool u_showJets;
+uniform bool u_showPhotonRing;
 
 // Debug flags
 uniform bool u_showHorizon;
@@ -191,20 +198,25 @@ vec3 starfield(vec3 dir) {
 }
 
 // ============================================================================
-// Main Ray Marching with Geodesic Integration and Accretion Disk
+// Main Ray Marching with Geodesic Integration and All Features
 // ============================================================================
 
 /**
- * Integrate geodesic with accretion disk sampling
- * Returns disk color accumulated along the path
+ * Integrate geodesic with all feature sampling
+ * Returns accumulated colors from disk, jets, ergosphere, and photon ring data
  */
-int integrateGeodesicWithDisk(
+int integrateGeodesicWithFeatures(
     vec3 camPos, vec3 rayDir,
     float M, float a,
     int maxSteps, float escapeRadius, float stepSize,
+    float time,
     out vec3 finalDir,
     out vec3 diskColor,
-    out float diskAlpha
+    out float diskAlpha,
+    out vec3 jetColor,
+    out vec3 ergoColor,
+    out float minRadius,
+    out float totalPhiChange
 ) {
     // Initialize
     float r, theta, phi, pr, ptheta, E, Lz, Q;
@@ -216,14 +228,28 @@ int integrateGeodesicWithDisk(
     finalDir = rayDir;
     diskColor = vec3(0.0);
     diskAlpha = 0.0;
+    jetColor = vec3(0.0);
+    ergoColor = vec3(0.0);
+    minRadius = r;
+    totalPhiChange = 0.0;
 
     float prevTheta = theta;
     float prevR = r;
+    float prevPhi = phi;
 
     for (int i = 0; i < 1000; i++) {
         if (i >= maxSteps) {
             return RAY_MAX_STEPS;
         }
+
+        // Track minimum radius for photon ring calculation
+        minRadius = min(minRadius, r);
+
+        // Track total phi change (for counting orbits)
+        float dPhi = phi - prevPhi;
+        if (dPhi > PI) dPhi -= TWO_PI;
+        if (dPhi < -PI) dPhi += TWO_PI;
+        totalPhiChange += abs(dPhi);
 
         // Check termination: captured
         if (r < rH * 1.001) {
@@ -271,6 +297,21 @@ int integrateGeodesicWithDisk(
             return RAY_ESCAPED;
         }
 
+        // Get current position in Cartesian for feature sampling
+        vec3 currentPos = boyerLindquistToCartesian(vec3(r, theta, phi), a);
+
+        // Sample relativistic jets
+        if (u_showJets) {
+            vec3 jetSample = sampleJet(currentPos, rayDir, M, a, time);
+            jetColor += jetSample * (1.0 - diskAlpha);
+        }
+
+        // Sample ergosphere visualization
+        if (u_showErgosphere) {
+            vec3 ergoSample = ergosphereVisualization(currentPos, rayDir, M, a, time);
+            ergoColor += ergoSample * 0.1;
+        }
+
         // Sample accretion disk if enabled
         if (u_showDisk && diskAlpha < 0.99) {
             // Check if we crossed the equatorial plane
@@ -304,6 +345,7 @@ int integrateGeodesicWithDisk(
         // Store previous position for crossing detection
         prevTheta = theta;
         prevR = r;
+        prevPhi = phi;
 
         // Adaptive step size
         float distToHorizon = r - rH;
@@ -319,6 +361,15 @@ int integrateGeodesicWithDisk(
             float diskProximity = abs(theta - HALF_PI) / u_diskThickness;
             if (diskProximity < 5.0) {
                 h *= max(0.2, diskProximity / 5.0);
+            }
+        }
+
+        // Near jets, use smaller steps
+        if (u_showJets && abs(currentPos.z) > rH * 2.0) {
+            float cylR = length(currentPos.xy);
+            float jetRadius = 0.5 * M + abs(currentPos.z) * 0.1;
+            if (cylR < jetRadius * 2.0) {
+                h *= 0.7;
             }
         }
 
@@ -341,18 +392,27 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
     float M = u_mass;
     float a = u_spin;
 
-    // Integrate geodesic with disk sampling
+    // Integrate geodesic with all feature sampling
     vec3 finalDir;
     vec3 diskColor;
     float diskAlpha;
+    vec3 jetColor;
+    vec3 ergoColor;
+    float minRadius;
+    float totalPhiChange;
 
-    int result = integrateGeodesicWithDisk(
+    int result = integrateGeodesicWithFeatures(
         rayOrigin, rayDir,
         M, a,
         u_maxSteps, u_escapeRadius, u_stepSize,
+        u_time,
         finalDir,
         diskColor,
-        diskAlpha
+        diskAlpha,
+        jetColor,
+        ergoColor,
+        minRadius,
+        totalPhiChange
     );
 
     vec3 backgroundColor;
@@ -364,8 +424,33 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
         backgroundColor = starfield(finalDir);
     }
 
-    // Composite disk over background
-    vec3 finalColor = mix(backgroundColor, diskColor, diskAlpha);
+    // Calculate photon ring contribution
+    vec3 photonRingColor = vec3(0.0);
+    if (u_showPhotonRing) {
+        float numOrbits = totalPhiChange / TWO_PI;
+        photonRingColor = calculatePhotonRing(minRadius, numOrbits, M, a);
+    }
+
+    // Composite all layers (back to front):
+    // 1. Background (starfield or black)
+    // 2. Ergosphere glow
+    // 3. Jets
+    // 4. Photon ring
+    // 5. Accretion disk
+
+    vec3 finalColor = backgroundColor;
+
+    // Add ergosphere visualization
+    finalColor += ergoColor;
+
+    // Add jets (additive blending)
+    finalColor += jetColor;
+
+    // Add photon ring glow
+    finalColor += photonRingColor;
+
+    // Composite disk over everything (it's in front)
+    finalColor = mix(finalColor, diskColor, diskAlpha);
 
     return vec4(finalColor, 1.0);
 }

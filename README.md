@@ -252,15 +252,17 @@ This simulation demonstrates fundamental concepts in:
 - [x] Temperature profile (Novikov-Thorne model)
 - [x] Relativistic effects (Doppler shifting, beaming, gravitational redshift)
 
-### Phase 4: Advanced Features
-- [ ] Photon sphere
-- [ ] Relativistic jets
-- [ ] Ergosphere visualization
+### Phase 4: Advanced Features ✓
+- [x] Photon ring / light ring visualization
+- [x] Relativistic jets (Blandford-Znajek mechanism, Doppler boosting)
+- [x] Enhanced ergosphere with frame-dragging visualization
 
-### Phase 5: Animation System
-- [ ] Keyframe controller
-- [ ] Educational sequence
-- [ ] Annotations
+### Phase 5: Animation System ✓
+- [x] Keyframe controller with easing functions
+- [x] Educational tour (7 guided scenes, 60 seconds)
+- [x] Quick demos (spin comparison, disk temperature, jet power)
+- [x] Annotation overlay system with scene descriptions
+- [x] Interactive controls (play/pause, seek, scene jump)
 
 ### Phase 6: Optimization
 - [ ] Performance monitoring

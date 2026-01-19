@@ -60,11 +60,17 @@ export const defaultParams = {
         diskAngularVelocity: 0.5, // Relative to Keplerian
     },
 
+    // Advanced features (Phase 4)
+    advancedFeatures: {
+        showJets: true,           // Relativistic jets from poles
+        showPhotonRing: true,     // Photon ring / light ring effect
+    },
+
     // Debug parameters
     debug: {
         showEventHorizon: true,
         showPhotonSphere: false,
-        showErgosphere: false,
+        showErgosphere: true,     // Now with enhanced frame-dragging visualization
         showISCO: false,
         showCoordinateGrid: false,
         logPerformance: false,
