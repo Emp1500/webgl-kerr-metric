@@ -10,6 +10,12 @@
  * - RK4 integrator for null geodesics
  * - Proper gravitational lensing
  * - Background star distortion
+ *
+ * Phase 3: Accretion Disk
+ * - Thin disk geometry (ISCO to outer radius)
+ * - Novikov-Thorne temperature profile
+ * - Relativistic Doppler shifting and beaming
+ * - Gravitational redshift
  */
 
 import { WebGLContext } from './core/webgl-context.js';
@@ -193,6 +199,10 @@ class BlackHoleSimulation {
         // Set uniforms
         const { width, height } = this.webglContext.getSize();
 
+        // Calculate disk inner radius (ISCO) if not set
+        const diskInnerRadius = this.params.accretionDisk.innerRadius ||
+                                this.kerrMetric.iscoRadius();
+
         this.shaderManager.setUniforms('main', {
             u_resolution: [width, height],
             u_time: performance.now() / 1000,
@@ -204,6 +214,13 @@ class BlackHoleSimulation {
             u_maxDistance: this.params.rayMarching.maxDistance,
             u_escapeRadius: this.params.rayMarching.escapeRadius,
             u_stepSize: this.params.integrator.stepSize,
+            // Accretion disk uniforms
+            u_showDisk: this.params.accretionDisk.enabled,
+            u_diskInnerRadius: diskInnerRadius,
+            u_diskOuterRadius: this.params.accretionDisk.outerRadius,
+            u_diskTemperature: this.params.accretionDisk.temperature,
+            u_diskThickness: this.params.accretionDisk.thickness,
+            // Debug flags
             u_showHorizon: this.params.debug.showEventHorizon,
             u_showPhotonSphere: this.params.debug.showPhotonSphere,
             u_showErgosphere: this.params.debug.showErgosphere
@@ -272,9 +289,18 @@ class BlackHoleSimulation {
         console.log('  - kerrMetric: Kerr metric calculator');
         console.log('  - params: Simulation parameters');
         console.log('');
-        console.log('Try: kerrMetric.eventHorizonRadius()');
-        console.log('Try: kerrMetric.iscoRadius()');
-        console.log('Try: params.blackHole.spin = 0.5');
+        console.log('Black hole controls:');
+        console.log('  simulation.setBlackHoleParams(mass, spin)');
+        console.log('  simulation.setCameraPosition(distance, theta, phi)');
+        console.log('  simulation.toggleAutoRotate()');
+        console.log('');
+        console.log('Accretion disk controls:');
+        console.log('  simulation.toggleDisk()');
+        console.log('  simulation.setDiskParams(outerRadius, temperature, thickness)');
+        console.log('');
+        console.log('Quick examples:');
+        console.log('  params.blackHole.spin = 0.5  // Change spin');
+        console.log('  params.accretionDisk.temperature = 5e6  // Cooler disk');
     }
 
     /**
@@ -303,6 +329,35 @@ class BlackHoleSimulation {
     toggleAutoRotate() {
         this.params.animation.autoRotate = !this.params.animation.autoRotate;
         console.log('Auto-rotate:', this.params.animation.autoRotate);
+    }
+
+    /**
+     * Toggle accretion disk visibility
+     */
+    toggleDisk() {
+        this.params.accretionDisk.enabled = !this.params.accretionDisk.enabled;
+        console.log('Accretion disk:', this.params.accretionDisk.enabled ? 'enabled' : 'disabled');
+    }
+
+    /**
+     * Set accretion disk parameters
+     */
+    setDiskParams(outerRadius, temperature, thickness) {
+        if (outerRadius !== undefined) {
+            this.params.accretionDisk.outerRadius = outerRadius;
+        }
+        if (temperature !== undefined) {
+            this.params.accretionDisk.temperature = temperature;
+        }
+        if (thickness !== undefined) {
+            this.params.accretionDisk.thickness = thickness;
+        }
+        console.log('Disk params updated:', {
+            innerRadius: this.kerrMetric.iscoRadius().toFixed(3) + ' (ISCO)',
+            outerRadius: this.params.accretionDisk.outerRadius,
+            temperature: this.params.accretionDisk.temperature,
+            thickness: this.params.accretionDisk.thickness
+        });
     }
 }
 

@@ -39,3 +39,6 @@ coverage/
 
 # Editor backups
 *.bak
+
+# Claude Code local config
+CLAUDE.md

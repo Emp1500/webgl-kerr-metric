@@ -34,12 +34,13 @@ export const defaultParams = {
         maxSteps: 800,       // Maximum integration steps per ray
     },
 
-    // Accretion disk parameters (for later phases)
+    // Accretion disk parameters (Phase 3)
     accretionDisk: {
-        innerRadius: null,   // Will be set to ISCO
-        outerRadius: 20.0,   // Outer edge in units of M
-        temperature: 1e7,    // Peak temperature in Kelvin
-        thickness: 0.1,      // Disk half-thickness ratio
+        enabled: true,       // Enable/disable disk rendering
+        innerRadius: null,   // Will be set to ISCO automatically
+        outerRadius: 15.0,   // Outer edge in units of M
+        temperature: 1e7,    // Peak temperature in Kelvin (10 million K)
+        thickness: 0.05,     // Disk half-thickness ratio (h/r)
     },
 
     // Rendering parameters

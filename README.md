@@ -247,10 +247,10 @@ This simulation demonstrates fundamental concepts in:
 - [x] Ray marching pipeline
 - [x] Background star lensing
 
-### Phase 3: Accretion Disk
-- [ ] Disk geometry
-- [ ] Temperature profile
-- [ ] Relativistic effects
+### Phase 3: Accretion Disk ✓
+- [x] Disk geometry (thin equatorial disk from ISCO to outer radius)
+- [x] Temperature profile (Novikov-Thorne model)
+- [x] Relativistic effects (Doppler shifting, beaming, gravitational redshift)
 
 ### Phase 4: Advanced Features
 - [ ] Photon sphere

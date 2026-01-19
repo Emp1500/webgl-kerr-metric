@@ -3,7 +3,7 @@ precision highp float;
 
 // ============================================================================
 // Fragment Shader for Kerr Black Hole Ray Marching
-// Phase 2: Geodesic Integration with RK4
+// Phase 3: Accretion Disk with Relativistic Effects
 // ============================================================================
 
 // Include utility functions
@@ -14,6 +14,9 @@ precision highp float;
 
 // Include geodesic integrator
 #include "includes/geodesic-integrator.glsl"
+
+// Include accretion disk physics
+#include "includes/accretion-disk.glsl"
 
 // ============================================================================
 // Uniforms
@@ -39,6 +42,13 @@ uniform int u_maxSteps;
 uniform float u_maxDistance;
 uniform float u_escapeRadius;
 uniform float u_stepSize;
+
+// Accretion disk parameters
+uniform bool u_showDisk;
+uniform float u_diskInnerRadius;
+uniform float u_diskOuterRadius;
+uniform float u_diskTemperature;
+uniform float u_diskThickness;
 
 // Debug flags
 uniform bool u_showHorizon;
@@ -181,8 +191,148 @@ vec3 starfield(vec3 dir) {
 }
 
 // ============================================================================
-// Main Ray Marching with Geodesic Integration
+// Main Ray Marching with Geodesic Integration and Accretion Disk
 // ============================================================================
+
+/**
+ * Integrate geodesic with accretion disk sampling
+ * Returns disk color accumulated along the path
+ */
+int integrateGeodesicWithDisk(
+    vec3 camPos, vec3 rayDir,
+    float M, float a,
+    int maxSteps, float escapeRadius, float stepSize,
+    out vec3 finalDir,
+    out vec3 diskColor,
+    out float diskAlpha
+) {
+    // Initialize
+    float r, theta, phi, pr, ptheta, E, Lz, Q;
+    initializeGeodesic(camPos, rayDir, M, a, r, theta, phi, pr, ptheta, E, Lz, Q);
+
+    float rH = eventHorizonRadius(M, a);
+    float rPh = photonSphereRadius(M, a);
+
+    finalDir = rayDir;
+    diskColor = vec3(0.0);
+    diskAlpha = 0.0;
+
+    float prevTheta = theta;
+    float prevR = r;
+
+    for (int i = 0; i < 1000; i++) {
+        if (i >= maxSteps) {
+            return RAY_MAX_STEPS;
+        }
+
+        // Check termination: captured
+        if (r < rH * 1.001) {
+            return RAY_CAPTURED;
+        }
+
+        // Check termination: escaped
+        if (r > escapeRadius) {
+            // Compute final direction from current position and momentum
+            vec3 pos = boyerLindquistToCartesian(vec3(r, theta, phi), a);
+
+            // Direction from velocity components
+            float sinTheta = sin(theta);
+            float cosTheta = cos(theta);
+
+            // Convert BL velocities back to Cartesian direction
+            vec3 rHat = normalize(pos);
+            vec3 zAxis = vec3(0.0, 0.0, 1.0);
+            vec3 phiHat = normalize(cross(zAxis, rHat));
+            if (length(cross(zAxis, rHat)) < EPSILON) {
+                phiHat = vec3(0.0, 1.0, 0.0);
+            }
+
+            float rxy = length(pos.xy);
+            vec3 thetaHat;
+            if (rxy > EPSILON) {
+                thetaHat = vec3(
+                    pos.z * pos.x / (r * rxy),
+                    pos.z * pos.y / (r * rxy),
+                    -rxy / r
+                );
+            } else {
+                thetaHat = vec3(1.0, 0.0, 0.0);
+            }
+
+            // Reconstruct direction
+            vec3 vel = geodesicDerivatives(r, theta, pr, ptheta, E, Lz, Q, M, a);
+
+            finalDir = normalize(
+                vel.x * rHat +
+                r * vel.y * thetaHat +
+                r * sinTheta * vel.z * phiHat
+            );
+
+            return RAY_ESCAPED;
+        }
+
+        // Sample accretion disk if enabled
+        if (u_showDisk && diskAlpha < 0.99) {
+            // Check if we crossed the equatorial plane
+            bool crossedEquator = (theta - HALF_PI) * (prevTheta - HALF_PI) < 0.0;
+
+            // Or if we're very close to it
+            float distFromEquator = abs(theta - HALF_PI);
+            bool nearEquator = distFromEquator < u_diskThickness * 2.0;
+
+            if ((crossedEquator || nearEquator) &&
+                r >= u_diskInnerRadius && r <= u_diskOuterRadius) {
+
+                // Calculate disk emission at this point
+                vec3 emission = diskEmission(
+                    r, HALF_PI, phi, rayDir,
+                    u_diskInnerRadius, u_diskOuterRadius,
+                    u_diskTemperature, M, a
+                );
+
+                // Optical depth based on how we're passing through
+                float pathLength = nearEquator ? distFromEquator / u_diskThickness : 1.0;
+                float opticalDepth = 1.0 - exp(-pathLength * 5.0);
+
+                // Accumulate with front-to-back compositing
+                float alpha = opticalDepth * (1.0 - diskAlpha);
+                diskColor += emission * alpha;
+                diskAlpha += alpha;
+            }
+        }
+
+        // Store previous position for crossing detection
+        prevTheta = theta;
+        prevR = r;
+
+        // Adaptive step size
+        float distToHorizon = r - rH;
+        float h = stepSize * clamp(distToHorizon / rPh, 0.01, 1.0);
+
+        // Near photon sphere, use smaller steps
+        if (abs(r - rPh) < rPh * 0.5) {
+            h *= 0.5;
+        }
+
+        // Near disk, use smaller steps for better sampling
+        if (u_showDisk && r >= u_diskInnerRadius * 0.9 && r <= u_diskOuterRadius * 1.1) {
+            float diskProximity = abs(theta - HALF_PI) / u_diskThickness;
+            if (diskProximity < 5.0) {
+                h *= max(0.2, diskProximity / 5.0);
+            }
+        }
+
+        // RK4 step
+        rk4Step(r, theta, phi, pr, ptheta, E, Lz, Q, M, a, h);
+
+        // Safety: if r becomes invalid
+        if (r < 0.0 || r != r) {  // r != r checks for NaN
+            return RAY_CAPTURED;
+        }
+    }
+
+    return RAY_MAX_STEPS;
+}
 
 /**
  * Ray march through curved spacetime using geodesic integration
@@ -191,22 +341,33 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
     float M = u_mass;
     float a = u_spin;
 
-    // Integrate geodesic
+    // Integrate geodesic with disk sampling
     vec3 finalDir;
-    int result = integrateGeodesic(
+    vec3 diskColor;
+    float diskAlpha;
+
+    int result = integrateGeodesicWithDisk(
         rayOrigin, rayDir,
         M, a,
         u_maxSteps, u_escapeRadius, u_stepSize,
-        finalDir
+        finalDir,
+        diskColor,
+        diskAlpha
     );
 
+    vec3 backgroundColor;
     if (result == RAY_CAPTURED) {
-        // Fell into black hole - return black
-        return vec4(0.0, 0.0, 0.0, 1.0);
+        // Fell into black hole - black background
+        backgroundColor = vec3(0.0);
     } else {
         // Escaped - sample starfield with final (lensed) direction
-        return vec4(starfield(finalDir), 1.0);
+        backgroundColor = starfield(finalDir);
     }
+
+    // Composite disk over background
+    vec3 finalColor = mix(backgroundColor, diskColor, diskAlpha);
+
+    return vec4(finalColor, 1.0);
 }
 
 // ============================================================================
