@@ -264,15 +264,15 @@ This simulation demonstrates fundamental concepts in:
 - [x] Annotation overlay system with scene descriptions
 - [x] Interactive controls (play/pause, seek, scene jump)
 
-### Phase 6: Optimization
-- [ ] Performance monitoring
-- [ ] Adaptive quality
-- [ ] Cross-browser testing
+### Phase 6: Optimization ✓
+- [x] Performance monitoring (PerformanceMonitor class integrated)
+- [x] Adaptive quality (QualityManager with 5 presets: ultra/high/medium/low/potato)
+- [x] Cross-browser testing (BrowserCapabilities detection, testing checklist)
 
-### Phase 7: Validation
-- [ ] Physics tests
-- [ ] Visual comparison
-- [ ] Documentation
+### Phase 7: Validation ✓
+- [x] Physics tests (35+ tests for KerrMetric and AccretionDisk)
+- [x] Visual comparison (screenshot capture and diff framework)
+- [x] Documentation (docs/VALIDATION.md with methodology and tolerances)
 
 ## Contributing
 

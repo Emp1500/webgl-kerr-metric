@@ -14,6 +14,7 @@ export class WebGLContext {
         this.extensions = {};
         this.resizeCallbacks = [];
         this.pixelRatio = Math.min(window.devicePixelRatio || 1, 2);
+        this.resolutionScale = 1.0;  // Quality-based resolution multiplier
 
         this._init();
         this._setupResize();
@@ -106,8 +107,9 @@ export class WebGLContext {
     }
 
     _resize() {
-        const displayWidth = Math.floor(this.canvas.clientWidth * this.pixelRatio);
-        const displayHeight = Math.floor(this.canvas.clientHeight * this.pixelRatio);
+        const scale = this.pixelRatio * this.resolutionScale;
+        const displayWidth = Math.floor(this.canvas.clientWidth * scale);
+        const displayHeight = Math.floor(this.canvas.clientHeight * scale);
 
         if (this.canvas.width !== displayWidth || this.canvas.height !== displayHeight) {
             this.canvas.width = displayWidth;
@@ -119,6 +121,16 @@ export class WebGLContext {
                 callback(displayWidth, displayHeight);
             }
         }
+    }
+
+    /**
+     * Update resolution scale (for quality settings)
+     * @param {number} scale - Resolution multiplier (0.33 to 2.0)
+     */
+    updateResolution(scale) {
+        this.resolutionScale = Math.max(0.25, Math.min(2.0, scale));
+        this._resize();
+        console.log(`Resolution scale updated to: ${this.resolutionScale.toFixed(2)}`);
     }
 
     /**

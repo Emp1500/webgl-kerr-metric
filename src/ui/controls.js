@@ -152,6 +152,21 @@ export class ControlsManager {
                     this.simulation.toggleAutoRotate();
                     break;
 
+                // Quality controls (Phase 6)
+                case 'KeyQ':
+                    if (e.shiftKey) {
+                        // Toggle adaptive quality
+                        if (this.simulation.qualityManager) {
+                            this.simulation.qualityManager.toggleAdaptive();
+                        }
+                    } else {
+                        // Cycle through quality levels
+                        if (this.simulation.qualityManager) {
+                            this.simulation.qualityManager.cycleQuality();
+                        }
+                    }
+                    break;
+
                 // Quick demos
                 case 'F1':
                     e.preventDefault();
@@ -333,6 +348,10 @@ Feature Toggles:
   P - Photon ring
   E - Ergosphere
   A - Auto-rotate
+
+Quality Controls (Phase 6):
+  Q         - Cycle quality (ultra/high/medium/low/potato)
+  Shift+Q   - Toggle adaptive quality
 
 Quick Demos:
   F1 - Spin comparison

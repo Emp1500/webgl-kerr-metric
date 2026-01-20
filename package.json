@@ -1,0 +1,22 @@
+{
+  "name": "kerr-black-hole-simulation",
+  "version": "1.0.0",
+  "description": "Scientifically accurate 3D visualization of a rotating Kerr black hole using WebGL 2.0",
+  "type": "module",
+  "scripts": {
+    "start": "python3 -m http.server 8000",
+    "test": "node tests/run-validation.js",
+    "test:quick": "node tests/run-validation.js --quick"
+  },
+  "devDependencies": {
+    "puppeteer": "^23.0.0"
+  },
+  "keywords": [
+    "black-hole",
+    "kerr-metric",
+    "webgl",
+    "physics-simulation",
+    "general-relativity"
+  ],
+  "license": "MIT"
+}

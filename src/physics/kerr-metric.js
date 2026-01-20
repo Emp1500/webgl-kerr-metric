@@ -264,57 +264,266 @@ export class KerrMetric {
     }
 
     /**
-     * Validate physics calculations against known results
+     * Validate physics calculations against known results (Phase 7)
      *
      * @returns {Object} Validation results
      */
     static validate() {
         const results = [];
+        const TOLERANCE = 1e-6;
+        const TOLERANCE_EXTREMAL = 0.01;
 
-        // Test 1: Schwarzschild (a=0, M=1)
+        // ═══════════════════════════════════════════════════════════════
+        // SCHWARZSCHILD TESTS (a=0, M=1) - Exact analytical values
+        // ═══════════════════════════════════════════════════════════════
         const schwarzschild = new KerrMetric(1, 0);
+
         results.push({
-            test: 'Schwarzschild event horizon',
-            expected: 2,
+            test: 'Schwarzschild event horizon (r+ = 2M)',
+            expected: 2.0,
             actual: schwarzschild.eventHorizonRadius(),
-            pass: Math.abs(schwarzschild.eventHorizonRadius() - 2) < EPSILON
+            pass: Math.abs(schwarzschild.eventHorizonRadius() - 2.0) < TOLERANCE
         });
+
         results.push({
-            test: 'Schwarzschild ISCO',
-            expected: 6,
+            test: 'Schwarzschild inner horizon (r- = 0)',
+            expected: 0.0,
+            actual: schwarzschild.innerHorizonRadius(),
+            pass: Math.abs(schwarzschild.innerHorizonRadius() - 0.0) < TOLERANCE
+        });
+
+        results.push({
+            test: 'Schwarzschild ISCO (r = 6M)',
+            expected: 6.0,
             actual: schwarzschild.iscoRadius(),
-            pass: Math.abs(schwarzschild.iscoRadius() - 6) < EPSILON
+            pass: Math.abs(schwarzschild.iscoRadius() - 6.0) < TOLERANCE
         });
+
         results.push({
-            test: 'Schwarzschild photon sphere',
-            expected: 3,
+            test: 'Schwarzschild ISCO retrograde (r = 6M)',
+            expected: 6.0,
+            actual: schwarzschild.iscoRadiusRetrograde(),
+            pass: Math.abs(schwarzschild.iscoRadiusRetrograde() - 6.0) < TOLERANCE
+        });
+
+        results.push({
+            test: 'Schwarzschild photon sphere (r = 3M)',
+            expected: 3.0,
             actual: schwarzschild.photonSphereRadius(),
-            pass: Math.abs(schwarzschild.photonSphereRadius() - 3) < EPSILON
+            pass: Math.abs(schwarzschild.photonSphereRadius() - 3.0) < TOLERANCE
         });
 
-        // Test 2: Extremal Kerr (a=M=1)
-        const extremal = new KerrMetric(1, 0.9999);
         results.push({
-            test: 'Extremal Kerr event horizon',
-            expected: 1,
-            actual: extremal.eventHorizonRadius(),
-            pass: Math.abs(extremal.eventHorizonRadius() - 1) < 0.01
-        });
-        results.push({
-            test: 'Extremal Kerr ISCO',
-            expected: 1,
-            actual: extremal.iscoRadius(),
-            pass: Math.abs(extremal.iscoRadius() - 1) < 0.1
+            test: 'Schwarzschild ergosphere at equator (= horizon)',
+            expected: 2.0,
+            actual: schwarzschild.ergosphereRadius(Math.PI / 2),
+            pass: Math.abs(schwarzschild.ergosphereRadius(Math.PI / 2) - 2.0) < TOLERANCE
         });
 
-        // Test 3: Moderate spin (a=0.5)
+        results.push({
+            test: 'Schwarzschild frame dragging (= 0)',
+            expected: 0.0,
+            actual: schwarzschild.frameDraggingOmega(6, Math.PI / 2),
+            pass: Math.abs(schwarzschild.frameDraggingOmega(6, Math.PI / 2)) < TOLERANCE
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // MODERATE SPIN TESTS (a=0.5M, M=1)
+        // ═══════════════════════════════════════════════════════════════
         const moderate = new KerrMetric(1, 0.5);
-        const expectedHorizon = 1 + Math.sqrt(1 - 0.25);
+        const expectedHorizon05 = 1 + Math.sqrt(1 - 0.25);  // 1.866025...
+
         results.push({
             test: 'a=0.5 event horizon',
-            expected: expectedHorizon,
+            expected: expectedHorizon05,
             actual: moderate.eventHorizonRadius(),
-            pass: Math.abs(moderate.eventHorizonRadius() - expectedHorizon) < EPSILON
+            pass: Math.abs(moderate.eventHorizonRadius() - expectedHorizon05) < TOLERANCE
+        });
+
+        results.push({
+            test: 'a=0.5 inner horizon',
+            expected: 1 - Math.sqrt(0.75),
+            actual: moderate.innerHorizonRadius(),
+            pass: Math.abs(moderate.innerHorizonRadius() - (1 - Math.sqrt(0.75))) < TOLERANCE
+        });
+
+        results.push({
+            test: 'a=0.5 ergosphere at equator (= 2M)',
+            expected: 2.0,
+            actual: moderate.ergosphereRadius(Math.PI / 2),
+            pass: Math.abs(moderate.ergosphereRadius(Math.PI / 2) - 2.0) < TOLERANCE
+        });
+
+        results.push({
+            test: 'a=0.5 ergosphere at pole (= r+)',
+            expected: expectedHorizon05,
+            actual: moderate.ergosphereRadius(0),
+            pass: Math.abs(moderate.ergosphereRadius(0) - expectedHorizon05) < TOLERANCE
+        });
+
+        results.push({
+            test: 'a=0.5 ISCO < Schwarzschild ISCO',
+            expected: true,
+            actual: moderate.iscoRadius() < 6.0,
+            pass: moderate.iscoRadius() < 6.0
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // HIGH SPIN TESTS (a=0.9M, M=1) - Default simulation parameters
+        // ═══════════════════════════════════════════════════════════════
+        const highSpin = new KerrMetric(1, 0.9);
+        const expectedHorizon09 = 1 + Math.sqrt(1 - 0.81);  // 1.4358...
+
+        results.push({
+            test: 'a=0.9 event horizon',
+            expected: expectedHorizon09,
+            actual: highSpin.eventHorizonRadius(),
+            pass: Math.abs(highSpin.eventHorizonRadius() - expectedHorizon09) < TOLERANCE
+        });
+
+        results.push({
+            test: 'a=0.9 ISCO prograde (~2.32M)',
+            expected: 2.32,
+            actual: highSpin.iscoRadius(),
+            pass: Math.abs(highSpin.iscoRadius() - 2.32) < 0.01
+        });
+
+        results.push({
+            test: 'a=0.9 ISCO retrograde (~8.72M)',
+            expected: 8.72,
+            actual: highSpin.iscoRadiusRetrograde(),
+            pass: Math.abs(highSpin.iscoRadiusRetrograde() - 8.72) < 0.01
+        });
+
+        // Prograde photon orbit from Bardeen formula: 2M(1+cos(2/3*acos(-a/M)))
+        results.push({
+            test: 'a=0.9 photon sphere (prograde ~1.56M)',
+            expected: 1.56,
+            actual: highSpin.photonSphereRadius(),
+            pass: Math.abs(highSpin.photonSphereRadius() - 1.56) < 0.01
+        });
+
+        results.push({
+            test: 'a=0.9 frame dragging > 0 at horizon',
+            expected: true,
+            actual: highSpin.frameDraggingOmega(expectedHorizon09, Math.PI / 2) > 0,
+            pass: highSpin.frameDraggingOmega(expectedHorizon09, Math.PI / 2) > 0
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // NEAR-EXTREMAL TESTS (a=0.99M, M=1)
+        // ═══════════════════════════════════════════════════════════════
+        const nearExtremal = new KerrMetric(1, 0.99);
+
+        results.push({
+            test: 'a=0.99 event horizon > 1',
+            expected: true,
+            actual: nearExtremal.eventHorizonRadius() > 1.0,
+            pass: nearExtremal.eventHorizonRadius() > 1.0
+        });
+
+        results.push({
+            test: 'a=0.99 ISCO approaches M',
+            expected: true,
+            actual: nearExtremal.iscoRadius() < 2.0,
+            pass: nearExtremal.iscoRadius() < 2.0
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // EXTREMAL LIMIT TESTS (a→M)
+        // ═══════════════════════════════════════════════════════════════
+        const extremal = new KerrMetric(1, 0.9999);
+        // For a=0.9999: r+ = 1 + sqrt(1 - 0.9999^2) = 1 + sqrt(0.00019999) ≈ 1.0141
+        const expectedExtremalHorizon = 1 + Math.sqrt(1 - 0.9999 * 0.9999);
+
+        results.push({
+            test: 'Extremal Kerr event horizon → M',
+            expected: 1.0,
+            actual: extremal.eventHorizonRadius(),
+            pass: Math.abs(extremal.eventHorizonRadius() - expectedExtremalHorizon) < TOLERANCE
+        });
+
+        results.push({
+            test: 'Extremal Kerr ISCO → M',
+            expected: 1.0,
+            actual: extremal.iscoRadius(),
+            pass: Math.abs(extremal.iscoRadius() - 1.0) < 0.1
+        });
+
+        results.push({
+            test: 'Extremal ISCO retrograde → 9M',
+            expected: 9.0,
+            actual: extremal.iscoRadiusRetrograde(),
+            pass: Math.abs(extremal.iscoRadiusRetrograde() - 9.0) < 0.1
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // ORDERING CONSTRAINTS (must hold for all spins)
+        // ═══════════════════════════════════════════════════════════════
+        const testSpin = new KerrMetric(1, 0.7);
+
+        results.push({
+            test: 'r- < r+ (inner < outer horizon)',
+            expected: true,
+            actual: testSpin.innerHorizonRadius() < testSpin.eventHorizonRadius(),
+            pass: testSpin.innerHorizonRadius() < testSpin.eventHorizonRadius()
+        });
+
+        results.push({
+            test: 'r+ < r_photon (horizon < photon sphere)',
+            expected: true,
+            actual: testSpin.eventHorizonRadius() < testSpin.photonSphereRadius(),
+            pass: testSpin.eventHorizonRadius() < testSpin.photonSphereRadius()
+        });
+
+        results.push({
+            test: 'r_photon < ISCO (photon sphere < ISCO)',
+            expected: true,
+            actual: testSpin.photonSphereRadius() < testSpin.iscoRadius(),
+            pass: testSpin.photonSphereRadius() < testSpin.iscoRadius()
+        });
+
+        results.push({
+            test: 'ISCO prograde < ISCO retrograde',
+            expected: true,
+            actual: testSpin.iscoRadius() < testSpin.iscoRadiusRetrograde(),
+            pass: testSpin.iscoRadius() < testSpin.iscoRadiusRetrograde()
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // COORDINATE TRANSFORMATION TESTS
+        // ═══════════════════════════════════════════════════════════════
+        // Round-trip: Cartesian → BL → Cartesian
+        const testPoint = { x: 8, y: 6, z: 5 };
+        const bl = schwarzschild.cartesianToBoyerLindquist(testPoint.x, testPoint.y, testPoint.z);
+        const back = schwarzschild.boyerLindquistToCartesian(bl.r, bl.theta, bl.phi);
+
+        results.push({
+            test: 'Coordinate round-trip (Schwarzschild)',
+            expected: true,
+            actual: Math.abs(back.x - testPoint.x) < 0.01 &&
+                   Math.abs(back.y - testPoint.y) < 0.01 &&
+                   Math.abs(back.z - testPoint.z) < 0.01,
+            pass: Math.abs(back.x - testPoint.x) < 0.01 &&
+                  Math.abs(back.y - testPoint.y) < 0.01 &&
+                  Math.abs(back.z - testPoint.z) < 0.01
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // DELTA FUNCTION TESTS
+        // ═══════════════════════════════════════════════════════════════
+        results.push({
+            test: 'Delta = 0 at event horizon',
+            expected: 0.0,
+            actual: highSpin.delta(highSpin.eventHorizonRadius()),
+            pass: Math.abs(highSpin.delta(highSpin.eventHorizonRadius())) < TOLERANCE
+        });
+
+        results.push({
+            test: 'Delta > 0 outside horizon',
+            expected: true,
+            actual: highSpin.delta(highSpin.eventHorizonRadius() + 1) > 0,
+            pass: highSpin.delta(highSpin.eventHorizonRadius() + 1) > 0
         });
 
         return results;

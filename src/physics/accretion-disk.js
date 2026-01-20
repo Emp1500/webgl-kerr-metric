@@ -70,7 +70,8 @@ export class AccretionDisk {
         // Novikov-Thorne temperature profile
         const temp = this.T0 * Math.pow(1 / (x * x * x), 0.25) * Math.pow(f, 0.25);
 
-        return Math.min(temp, 50000); // Cap for numerical stability
+        // Cap at peak temperature for numerical stability (but preserve monotonicity)
+        return Math.min(temp, this.T0);
     }
 
     /**
@@ -176,57 +177,249 @@ export class AccretionDisk {
     }
 
     /**
-     * Validate disk physics against known results
+     * Validate disk physics against known results (Phase 7)
      *
      * @returns {Array} Array of test results
      */
     static validate() {
         const results = [];
+        const TOLERANCE = 0.01;  // 1% tolerance for disk physics
 
-        // Test 1: ISCO for Schwarzschild (a=0) should be 6M
-        const disk1 = new AccretionDisk(1, 0);
+        // ═══════════════════════════════════════════════════════════════
+        // ISCO TESTS
+        // ═══════════════════════════════════════════════════════════════
+        const diskSchwarzschild = new AccretionDisk(1, 0);
+
         results.push({
-            test: 'Schwarzschild ISCO',
+            test: 'Schwarzschild ISCO = 6M',
             expected: 6.0,
-            actual: disk1.innerRadius,
-            pass: Math.abs(disk1.innerRadius - 6.0) < 0.001
+            actual: diskSchwarzschild.innerRadius,
+            pass: Math.abs(diskSchwarzschild.innerRadius - 6.0) < 0.001
         });
 
-        // Test 2: ISCO for extremal Kerr (a=M) should be M
-        const disk2 = new AccretionDisk(1, 0.999);
+        const diskModerate = new AccretionDisk(1, 0.5);
         results.push({
-            test: 'Near-extremal ISCO',
-            expected: 1.0,
-            actual: disk2.innerRadius,
-            pass: disk2.innerRadius < 1.5 // Should be close to M
+            test: 'a=0.5 ISCO < Schwarzschild',
+            expected: true,
+            actual: diskModerate.innerRadius < 6.0,
+            pass: diskModerate.innerRadius < 6.0
         });
 
-        // Test 3: Temperature should be 0 inside ISCO
-        const tempInsideISCO = disk1.temperature(5);
+        const diskHighSpin = new AccretionDisk(1, 0.9);
         results.push({
-            test: 'Temperature inside ISCO',
+            test: 'a=0.9 ISCO (~2.32M)',
+            expected: 2.32,
+            actual: diskHighSpin.innerRadius,
+            pass: Math.abs(diskHighSpin.innerRadius - 2.32) < 0.01
+        });
+
+        const diskNearExtremal = new AccretionDisk(1, 0.999);
+        results.push({
+            test: 'Near-extremal ISCO approaches M',
+            expected: true,
+            actual: diskNearExtremal.innerRadius < 1.5,
+            pass: diskNearExtremal.innerRadius < 1.5
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // TEMPERATURE PROFILE TESTS (Novikov-Thorne model)
+        // ═══════════════════════════════════════════════════════════════
+        results.push({
+            test: 'Temperature = 0 inside ISCO',
             expected: 0,
-            actual: tempInsideISCO,
-            pass: tempInsideISCO === 0
+            actual: diskSchwarzschild.temperature(5),  // r=5M < ISCO=6M
+            pass: diskSchwarzschild.temperature(5) === 0
         });
 
-        // Test 4: Temperature should decrease with radius (outside ISCO)
-        const tempAt7 = disk1.temperature(7);
-        const tempAt10 = disk1.temperature(10);
         results.push({
-            test: 'Temperature decreases with radius',
-            expected: true,
-            actual: tempAt7 > tempAt10,
-            pass: tempAt7 > tempAt10
+            test: 'Temperature = 0 at ISCO',
+            expected: 0,
+            actual: diskSchwarzschild.temperature(6),  // r=ISCO
+            pass: diskSchwarzschild.temperature(6) === 0
         });
 
-        // Test 5: Orbital velocity should be subluminal
-        const velocity = disk1.orbitalVelocity(disk1.innerRadius);
         results.push({
-            test: 'Subluminal orbital velocity',
+            test: 'Temperature > 0 just outside ISCO',
             expected: true,
-            actual: velocity < 1,
-            pass: velocity < 1
+            actual: diskSchwarzschild.temperature(6.5) > 0,
+            pass: diskSchwarzschild.temperature(6.5) > 0
+        });
+
+        // Novikov-Thorne temperature profile has a peak, then decreases at large r
+        // T ~ r^(-3/4) * f(r)^0.25 where f(r) = 1 - sqrt(r_ISCO/r)
+        // The f factor dominates near ISCO causing T to increase initially
+        const tempAt10 = diskSchwarzschild.temperature(10);
+        const tempAt15 = diskSchwarzschild.temperature(15);
+        const tempAt20 = diskSchwarzschild.temperature(20);
+
+        // Temperature should decrease at large radii (well past the peak)
+        results.push({
+            test: 'Temperature decreases at large r: T(10M) > T(15M)',
+            expected: true,
+            actual: tempAt10 > tempAt15,
+            pass: tempAt10 > tempAt15
+        });
+
+        results.push({
+            test: 'Temperature decreases at large r: T(15M) > T(20M)',
+            expected: true,
+            actual: tempAt15 > tempAt20,
+            pass: tempAt15 > tempAt20
+        });
+
+        // Temperature should be positive in disk region
+        results.push({
+            test: 'Temperature positive in disk',
+            expected: true,
+            actual: tempAt10 > 0 && tempAt15 > 0 && tempAt20 > 0,
+            pass: tempAt10 > 0 && tempAt15 > 0 && tempAt20 > 0
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // ORBITAL VELOCITY TESTS
+        // ═══════════════════════════════════════════════════════════════
+        const velocityAtISCO = diskSchwarzschild.orbitalVelocity(6);
+        const velocityAt10M = diskSchwarzschild.orbitalVelocity(10);
+        const velocityAt15M = diskSchwarzschild.orbitalVelocity(15);
+
+        results.push({
+            test: 'Orbital velocity subluminal at ISCO',
+            expected: true,
+            actual: velocityAtISCO < 1.0,
+            pass: velocityAtISCO < 1.0
+        });
+
+        results.push({
+            test: 'Orbital velocity positive',
+            expected: true,
+            actual: velocityAtISCO > 0 && velocityAt10M > 0,
+            pass: velocityAtISCO > 0 && velocityAt10M > 0
+        });
+
+        results.push({
+            test: 'Velocity decreases with radius',
+            expected: true,
+            actual: velocityAtISCO > velocityAt10M && velocityAt10M > velocityAt15M,
+            pass: velocityAtISCO > velocityAt10M && velocityAt10M > velocityAt15M
+        });
+
+        // Schwarzschild ISCO velocity should be ~0.5c
+        results.push({
+            test: 'Schwarzschild ISCO velocity (~0.5c)',
+            expected: 0.5,
+            actual: velocityAtISCO,
+            pass: Math.abs(velocityAtISCO - 0.5) < 0.1
+        });
+
+        // High spin ISCO should have higher velocity
+        const velocityHighSpin = diskHighSpin.orbitalVelocity(diskHighSpin.innerRadius);
+        results.push({
+            test: 'High spin ISCO velocity > Schwarzschild',
+            expected: true,
+            actual: velocityHighSpin > velocityAtISCO,
+            pass: velocityHighSpin > velocityAtISCO
+        });
+
+        results.push({
+            test: 'High spin ISCO velocity still subluminal',
+            expected: true,
+            actual: velocityHighSpin < 1.0,
+            pass: velocityHighSpin < 1.0
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // GRAVITATIONAL REDSHIFT TESTS
+        // ═══════════════════════════════════════════════════════════════
+        const redshiftAtISCO = diskSchwarzschild.gravitationalRedshift(6);
+        const redshiftAt10M = diskSchwarzschild.gravitationalRedshift(10);
+
+        results.push({
+            test: 'Redshift factor in (0, 1] at ISCO',
+            expected: true,
+            actual: redshiftAtISCO > 0 && redshiftAtISCO <= 1,
+            pass: redshiftAtISCO > 0 && redshiftAtISCO <= 1
+        });
+
+        // Schwarzschild ISCO redshift should be sqrt(2/3) ≈ 0.816
+        results.push({
+            test: 'Schwarzschild ISCO redshift (~0.816)',
+            expected: Math.sqrt(2/3),
+            actual: redshiftAtISCO,
+            pass: Math.abs(redshiftAtISCO - Math.sqrt(2/3)) < TOLERANCE
+        });
+
+        results.push({
+            test: 'Redshift increases with radius (less redshift far away)',
+            expected: true,
+            actual: redshiftAt10M > redshiftAtISCO,
+            pass: redshiftAt10M > redshiftAtISCO
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // DOPPLER FACTOR TESTS
+        // ═══════════════════════════════════════════════════════════════
+        // Approaching side (viewAngle = 0) should be blueshifted (g > 1)
+        const dopplerApproaching = diskSchwarzschild.dopplerFactor(10, 0);
+        results.push({
+            test: 'Approaching gas blueshifted (g > 1)',
+            expected: true,
+            actual: dopplerApproaching > 1.0,
+            pass: dopplerApproaching > 1.0
+        });
+
+        // Receding side (viewAngle = π) should be redshifted (g < 1)
+        const dopplerReceding = diskSchwarzschild.dopplerFactor(10, Math.PI);
+        results.push({
+            test: 'Receding gas redshifted (g < 1)',
+            expected: true,
+            actual: dopplerReceding < 1.0,
+            pass: dopplerReceding < 1.0
+        });
+
+        // Transverse (viewAngle = π/2) should show transverse Doppler (g < 1 due to time dilation)
+        const dopplerTransverse = diskSchwarzschild.dopplerFactor(10, Math.PI / 2);
+        results.push({
+            test: 'Transverse Doppler factor reasonable',
+            expected: true,
+            actual: dopplerTransverse > 0.5 && dopplerTransverse < 1.5,
+            pass: dopplerTransverse > 0.5 && dopplerTransverse < 1.5
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // KEPLERIAN ANGULAR VELOCITY TESTS
+        // ═══════════════════════════════════════════════════════════════
+        const omegaAt6M = diskSchwarzschild.keplerianOmega(6);
+        const omegaAt10M = diskSchwarzschild.keplerianOmega(10);
+
+        results.push({
+            test: 'Keplerian Omega positive',
+            expected: true,
+            actual: omegaAt6M > 0,
+            pass: omegaAt6M > 0
+        });
+
+        results.push({
+            test: 'Keplerian Omega decreases with radius',
+            expected: true,
+            actual: omegaAt6M > omegaAt10M,
+            pass: omegaAt6M > omegaAt10M
+        });
+
+        // ═══════════════════════════════════════════════════════════════
+        // BOUNDARY CONDITION TESTS
+        // ═══════════════════════════════════════════════════════════════
+        results.push({
+            test: 'Inner radius > 0',
+            expected: true,
+            actual: diskHighSpin.innerRadius > 0,
+            pass: diskHighSpin.innerRadius > 0
+        });
+
+        results.push({
+            test: 'Inner radius < outer radius',
+            expected: true,
+            actual: diskHighSpin.innerRadius < diskHighSpin.outerRadius,
+            pass: diskHighSpin.innerRadius < diskHighSpin.outerRadius
         });
 
         return results;

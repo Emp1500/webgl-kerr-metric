@@ -38,6 +38,14 @@ import { TimeController, AnimationState } from './animation/time-controller.js';
 import { educationalTour } from './animation/tour-sequences.js';
 import { AnnotationManager, createHelpHint } from './ui/annotations.js';
 import { ControlsManager } from './ui/controls.js';
+import { PerformanceMonitor } from './core/performance-monitor.js';
+import { QualityManager } from './core/quality-manager.js';
+import { BrowserCapabilities } from './core/browser-capabilities.js';
+import { performanceBenchmarks } from '../tests/performance-benchmarks.js';
+import { AccretionDisk } from './physics/accretion-disk.js';
+import { physicsValidation } from '../tests/physics-validation.js';
+import { gpuCpuParity } from '../tests/gpu-cpu-parity.js';
+import { visualValidation } from '../tests/visual-validation.js';
 
 /**
  * Main simulation class
@@ -54,6 +62,11 @@ class BlackHoleSimulation {
         this.frameCount = 0;
         this.lastFrameTime = 0;
         this.fps = 0;
+
+        // Performance monitoring (Phase 6)
+        this.performanceMonitor = new PerformanceMonitor();
+        this.qualityManager = null;  // Initialized after WebGL context
+        this.browserCapabilities = null;  // Initialized after WebGL context
 
         // Camera state
         this.cameraPos = [0, 0, 0];
@@ -74,6 +87,13 @@ class BlackHoleSimulation {
             // Initialize WebGL context
             this.webglContext = new WebGLContext('canvas');
             const gl = this.webglContext.getContext();
+
+            // Initialize GPU timing for performance monitoring
+            this.performanceMonitor.initGPUTiming(gl);
+
+            // Detect browser capabilities (Phase 6)
+            this.browserCapabilities = new BrowserCapabilities(gl);
+            this.browserCapabilities.logCapabilities();
 
             this._showLoading('Loading shaders...');
 
@@ -98,6 +118,17 @@ class BlackHoleSimulation {
                 this.params.blackHole.spin
             );
 
+            // Initialize quality manager (Phase 6)
+            this.qualityManager = new QualityManager(this, this.performanceMonitor);
+            this.qualityManager.onQualityChange = (newLevel, oldLevel) => {
+                console.log(`Quality changed: ${oldLevel} -> ${newLevel}`);
+            };
+
+            // Set recommended quality based on browser capabilities
+            const recommendedQuality = this.browserCapabilities.getRecommendedQuality();
+            console.log(`Setting recommended quality: ${recommendedQuality}`);
+            this.qualityManager.setQuality(recommendedQuality);
+
             // Setup camera
             this._setupCamera();
 
@@ -116,6 +147,13 @@ class BlackHoleSimulation {
 
             // Export for debugging
             this._exportGlobals();
+
+            // Initialize performance benchmarks (Phase 6)
+            performanceBenchmarks.init(this);
+
+            // Initialize validation tools (Phase 7)
+            visualValidation.init(this);
+            gpuCpuParity.init(this);
 
             // Show help hint
             createHelpHint();
@@ -229,21 +267,61 @@ class BlackHoleSimulation {
     }
 
     _validatePhysics() {
-        console.log('Running physics validation...');
-        const results = KerrMetric.validate();
+        console.log('');
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log('              PHYSICS VALIDATION (Phase 7)                  ');
+        console.log('═══════════════════════════════════════════════════════════');
 
-        let allPassed = true;
-        for (const result of results) {
-            const status = result.pass ? 'PASS' : 'FAIL';
-            console.log(`  [${status}] ${result.test}: expected ${result.expected}, got ${result.actual.toFixed(6)}`);
-            if (!result.pass) allPassed = false;
+        // Run KerrMetric validation
+        console.log('');
+        console.log('─── KerrMetric Tests ───');
+        const kerrResults = KerrMetric.validate();
+        let kerrPassed = 0;
+        for (const result of kerrResults) {
+            const status = result.pass ? '✓' : '✗';
+            if (typeof result.expected === 'number' && typeof result.actual === 'number') {
+                console.log(`  ${status} ${result.test}: expected ${result.expected}, got ${result.actual.toFixed(6)}`);
+            } else {
+                console.log(`  ${status} ${result.test}`);
+            }
+            if (result.pass) kerrPassed++;
         }
+
+        // Run AccretionDisk validation
+        console.log('');
+        console.log('─── AccretionDisk Tests ───');
+        const diskResults = AccretionDisk.validate();
+        let diskPassed = 0;
+        for (const result of diskResults) {
+            const status = result.pass ? '✓' : '✗';
+            if (typeof result.expected === 'number' && typeof result.actual === 'number') {
+                console.log(`  ${status} ${result.test}: expected ${result.expected}, got ${result.actual.toFixed(6)}`);
+            } else {
+                console.log(`  ${status} ${result.test}`);
+            }
+            if (result.pass) diskPassed++;
+        }
+
+        // Summary
+        const totalPassed = kerrPassed + diskPassed;
+        const totalTests = kerrResults.length + diskResults.length;
+        const allPassed = totalPassed === totalTests;
+
+        console.log('');
+        console.log('═══════════════════════════════════════════════════════════');
+        console.log(`  SUMMARY: ${totalPassed}/${totalTests} tests passed`);
+        console.log(`    KerrMetric: ${kerrPassed}/${kerrResults.length}`);
+        console.log(`    AccretionDisk: ${diskPassed}/${diskResults.length}`);
+        console.log('═══════════════════════════════════════════════════════════');
 
         if (allPassed) {
-            console.log('All physics validation tests passed');
+            console.log('All physics validation tests passed ✓');
         } else {
-            console.warn('Some physics validation tests failed');
+            console.warn('Some physics validation tests failed ✗');
         }
+        console.log('');
+        console.log('For full validation suite: physicsValidation.run()');
+        console.log('');
     }
 
     _start() {
@@ -263,18 +341,30 @@ class BlackHoleSimulation {
         const deltaTime = (currentTime - this.lastFrameTime) / 1000;
         this.lastFrameTime = currentTime;
 
-        // Update FPS
-        this.frameCount++;
-        if (this.frameCount % 30 === 0) {
-            this.fps = Math.round(1 / deltaTime);
-            this._updateInfo();
-        }
+        // Begin performance measurement
+        this.performanceMonitor.beginFrame(currentTime);
 
         // Update animation
         this._update(currentTime / 1000, deltaTime);
 
         // Render
         this._render();
+
+        // End performance measurement
+        this.performanceMonitor.endFrame(performance.now());
+
+        // Update adaptive quality (Phase 6)
+        if (this.qualityManager) {
+            this.qualityManager.update();
+        }
+
+        // Update FPS display from performance monitor
+        this.frameCount++;
+        if (this.frameCount % 30 === 0) {
+            const metrics = this.performanceMonitor.getMetrics();
+            this.fps = metrics.fps;
+            this._updateInfo();
+        }
 
         // Next frame
         requestAnimationFrame(() => this._renderLoop());
@@ -353,17 +443,30 @@ class BlackHoleSimulation {
         const fpsElement = document.getElementById('fps');
         const paramsElement = document.getElementById('params');
 
+        const metrics = this.performanceMonitor.getMetrics();
+        const stats = this.performanceMonitor.getDetailedStats();
+
         if (fpsElement) {
-            fpsElement.textContent = `FPS: ${this.fps}`;
+            // Show FPS with performance state indicator
+            const stateColors = { good: '🟢', warning: '🟡', critical: '🔴' };
+            const stateIcon = stateColors[this.performanceMonitor.performanceState] || '';
+            fpsElement.textContent = `${stateIcon} FPS: ${this.fps} (${stats.timing.average}ms)`;
         }
 
         if (paramsElement) {
             const radii = this.kerrMetric.getKeyRadii();
+            const qualityLevel = this.qualityManager ? this.qualityManager.getCurrentQuality() : 'high';
             paramsElement.textContent = [
                 `M=${this.params.blackHole.mass} a=${this.params.blackHole.spin.toFixed(2)}`,
-                `r+=${radii.eventHorizon.toFixed(3)} ISCO=${radii.isco.toFixed(3)}`
+                `r+=${radii.eventHorizon.toFixed(3)} ISCO=${radii.isco.toFixed(3)}`,
+                `Quality: ${qualityLevel}`
             ].join(' | ');
         }
+
+        // Update resolution in performance monitor
+        const { width, height } = this.webglContext.getSize();
+        this.performanceMonitor.updateResolution(width, height);
+        this.performanceMonitor.updateStepsPerRay(this.params.integrator.maxSteps);
     }
 
     _showLoading(message) {
@@ -401,12 +504,18 @@ class BlackHoleSimulation {
         window.kerrMetric = this.kerrMetric;
         window.params = this.params;
         window.tour = this.timeController;
+        window.perfMonitor = this.performanceMonitor;
+        window.quality = this.qualityManager;
+        window.capabilities = this.browserCapabilities;
 
         console.log('Debug objects exported to window:');
         console.log('  - simulation: Main simulation instance');
         console.log('  - kerrMetric: Kerr metric calculator');
         console.log('  - params: Simulation parameters');
         console.log('  - tour: Animation/tour controller');
+        console.log('  - perfMonitor: Performance monitor (Phase 6)');
+        console.log('  - quality: Quality manager (Phase 6)');
+        console.log('  - capabilities: Browser capabilities (Phase 6)');
         console.log('');
         console.log('Black hole controls:');
         console.log('  simulation.setBlackHoleParams(mass, spin)');
@@ -428,7 +537,21 @@ class BlackHoleSimulation {
         console.log('  tour.play() / tour.pause()     // Control playback');
         console.log('  tour.jumpToSceneIndex(n)       // Jump to scene 1-7');
         console.log('');
-        console.log('Keyboard: T=tour, Space=play/pause, 1-7=scenes, H=help');
+        console.log('Performance controls (Phase 6):');
+        console.log('  perfMonitor.getMetrics()       // Get current performance metrics');
+        console.log('  perfMonitor.getSummary()       // Get performance summary string');
+        console.log('  perfMonitor.getDetailedStats() // Get detailed stats object');
+        console.log('  simulation.setQuality(level)   // Set quality: ultra/high/medium/low/potato');
+        console.log('  simulation.getPerformanceInfo()// Get full performance info');
+        console.log('');
+        console.log('Validation controls (Phase 7):');
+        console.log('  physicsValidation.run()        // Run full physics test suite');
+        console.log('  physicsValidation.runQuick()   // Run essential tests only');
+        console.log('  gpuCpuParity.run()             // Test GPU/CPU calculation parity');
+        console.log('  visualValidation.capture()     // Capture reference screenshot');
+        console.log('  visualValidation.compare()     // Compare to reference');
+        console.log('');
+        console.log('Keyboard: T=tour, Space=play/pause, 1-7=scenes, Q=quality, H=help');
     }
 
     /**
@@ -534,6 +657,38 @@ class BlackHoleSimulation {
      */
     help() {
         console.log(ControlsManager.getHelpText());
+    }
+
+    /**
+     * Set rendering quality level (Phase 6)
+     * @param {string} level - Quality level: 'ultra', 'high', 'medium', 'low', 'potato'
+     */
+    setQuality(level) {
+        if (this.qualityManager) {
+            this.qualityManager.setQuality(level);
+        } else {
+            console.warn('Quality manager not initialized');
+        }
+    }
+
+    /**
+     * Get current performance information (Phase 6)
+     * @returns {Object} Performance metrics and stats
+     */
+    getPerformanceInfo() {
+        const metrics = this.performanceMonitor.getMetrics();
+        const stats = this.performanceMonitor.getDetailedStats();
+        const qualityLevel = this.qualityManager ? this.qualityManager.getCurrentQuality() : 'high';
+
+        return {
+            fps: metrics.fps,
+            frameTime: metrics.avgFrameTime.toFixed(2) + 'ms',
+            performanceState: this.performanceMonitor.performanceState,
+            qualityLevel: qualityLevel,
+            resolution: `${metrics.resolution.width}x${metrics.resolution.height}`,
+            stepsPerRay: metrics.stepsPerRay,
+            memoryMB: metrics.memoryUsage.toFixed(1)
+        };
     }
 }
 
