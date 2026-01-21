@@ -11,7 +11,7 @@
 
 *Real-time ray marching through curved spacetime using pure WebGL*
 
-<img src="Blackhole.png" alt="Kerr Black Hole Simulation" width="700">
+<img src="ExactBlackHole.png" alt="Kerr Black Hole Simulation" width="700">
 
 [Live Demo](#quick-start) | [Documentation](#physics-background) | [Educational Tour](#educational-tour) | [Contributing](#contributing)
 
