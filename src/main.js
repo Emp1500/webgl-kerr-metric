@@ -471,8 +471,13 @@ class BlackHoleSimulation {
 
     _showLoading(message) {
         const loadingElement = document.getElementById('loading');
-        if (loadingElement) {
+        const loadingText = loadingElement?.querySelector('.loading-text');
+        if (loadingText) {
+            loadingText.textContent = message;
+        } else if (loadingElement) {
             loadingElement.textContent = message;
+        }
+        if (loadingElement) {
             loadingElement.classList.remove('hidden');
         }
     }
@@ -481,6 +486,10 @@ class BlackHoleSimulation {
         const loadingElement = document.getElementById('loading');
         if (loadingElement) {
             loadingElement.classList.add('hidden');
+            // Remove from DOM after transition
+            setTimeout(() => {
+                loadingElement.classList.add('removed');
+            }, 800);
         }
     }
 
@@ -641,6 +650,9 @@ class BlackHoleSimulation {
     startTour() {
         this.timeController.startEducationalTour();
         this.annotationManager.show();
+
+        // Dispatch event for landing page to fade out
+        window.dispatchEvent(new CustomEvent('tourStarted'));
     }
 
     /**

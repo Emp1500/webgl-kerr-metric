@@ -114,87 +114,12 @@ float hash21(vec2 p) {
 }
 
 /**
- * Multi-layer procedural starfield with Milky Way band
+ * Background - pure black void like NASA visualization
+ * No stars, just the dark emptiness of space
  */
 vec3 starfield(vec3 dir) {
-    // Convert direction to spherical coordinates
-    vec3 sph = cartesianToSpherical(dir);
-    float theta = sph.y;  // Polar angle
-    float phi = sph.z;    // Azimuthal angle
-
-    // Base dark sky color
-    vec3 skyColor = vec3(0.0, 0.0, 0.015);
-
-    // Milky Way band - a brighter region along the galactic plane
-    // Place it roughly at theta ≈ π/2 (equatorial) with some tilt
-    float galacticAngle = theta + 0.3 * sin(phi * 2.0);
-    float milkyWay = exp(-pow((galacticAngle - HALF_PI) * 3.0, 2.0));
-    skyColor += vec3(0.02, 0.015, 0.025) * milkyWay * 0.5;
-
-    // Add some galactic dust variation
-    float dust = hash21(vec2(phi * 10.0, theta * 10.0));
-    skyColor += vec3(0.01, 0.008, 0.012) * dust * milkyWay;
-
-    // Multiple star layers for depth
-    vec3 starLight = vec3(0.0);
-
-    // Layer 1: Dense small stars
-    {
-        vec2 starUV = vec2(phi * 200.0, theta * 100.0);
-        vec2 starCell = floor(starUV);
-        vec2 starFrac = fract(starUV);
-
-        float h = hash21(starCell);
-        vec2 starPos = vec2(hash21(starCell + 0.1), hash21(starCell + 0.2));
-        float dist = length(starFrac - starPos);
-
-        // Star brightness based on hash
-        float brightness = smoothstep(0.98, 1.0, h);
-        float star = smoothstep(0.05, 0.0, dist) * brightness;
-
-        // Slight color variation
-        vec3 starColor = mix(vec3(0.8, 0.85, 1.0), vec3(1.0, 0.95, 0.8), hash21(starCell + 0.5));
-        starLight += starColor * star * 0.5;
-    }
-
-    // Layer 2: Medium stars
-    {
-        vec2 starUV = vec2(phi * 80.0, theta * 40.0);
-        vec2 starCell = floor(starUV);
-        vec2 starFrac = fract(starUV);
-
-        float h = hash21(starCell + 100.0);
-        vec2 starPos = vec2(hash21(starCell + 100.1), hash21(starCell + 100.2));
-        float dist = length(starFrac - starPos);
-
-        float brightness = smoothstep(0.95, 1.0, h);
-        float star = smoothstep(0.08, 0.0, dist) * brightness;
-
-        vec3 starColor = mix(vec3(1.0, 0.9, 0.8), vec3(0.7, 0.8, 1.0), hash21(starCell + 100.5));
-        starLight += starColor * star * 0.8;
-    }
-
-    // Layer 3: Bright stars (sparse)
-    {
-        vec2 starUV = vec2(phi * 30.0, theta * 15.0);
-        vec2 starCell = floor(starUV);
-        vec2 starFrac = fract(starUV);
-
-        float h = hash21(starCell + 200.0);
-        vec2 starPos = vec2(hash21(starCell + 200.1), hash21(starCell + 200.2));
-        float dist = length(starFrac - starPos);
-
-        float brightness = smoothstep(0.97, 1.0, h);
-        float star = smoothstep(0.12, 0.0, dist) * brightness;
-
-        // Add glow to bright stars
-        float glow = smoothstep(0.3, 0.0, dist) * brightness * 0.1;
-
-        vec3 starColor = mix(vec3(1.0, 0.95, 0.9), vec3(0.9, 0.95, 1.0), hash21(starCell + 200.5));
-        starLight += starColor * (star + glow);
-    }
-
-    return skyColor + starLight;
+    // Pure black background - matches NASA/scientific visualizations
+    return vec3(0.0);
 }
 
 // ============================================================================
@@ -312,17 +237,18 @@ int integrateGeodesicWithFeatures(
             ergoColor += ergoSample * 0.1;
         }
 
-        // Sample accretion disk if enabled
-        if (u_showDisk && diskAlpha < 0.99) {
+        // Sample accretion disk - enhanced for NASA-style gravitational lensing
+        // Shows disk wrapping around both top AND bottom of black hole
+        if (u_showDisk && diskAlpha < 0.995) {
             // Check if we crossed the equatorial plane
             bool crossedEquator = (theta - HALF_PI) * (prevTheta - HALF_PI) < 0.0;
 
             // Or if we're very close to it
             float distFromEquator = abs(theta - HALF_PI);
-            bool nearEquator = distFromEquator < u_diskThickness * 2.0;
+            bool nearEquator = distFromEquator < u_diskThickness * 4.0;
 
             if ((crossedEquator || nearEquator) &&
-                r >= u_diskInnerRadius && r <= u_diskOuterRadius) {
+                r >= u_diskInnerRadius * 0.95 && r <= u_diskOuterRadius * 1.1) {
 
                 // Calculate disk emission at this point
                 vec3 emission = diskEmission(
@@ -331,14 +257,38 @@ int integrateGeodesicWithFeatures(
                     u_diskTemperature, M, a
                 );
 
-                // Optical depth based on how we're passing through
+                // Optical depth calculation
                 float pathLength = nearEquator ? distFromEquator / u_diskThickness : 1.0;
-                float opticalDepth = 1.0 - exp(-pathLength * 5.0);
+                float opticalDepth = 1.0 - exp(-pathLength * 10.0);
+
+                // === GRAVITATIONAL LENSING BOOST ===
+                // Rays that cross the equator multiple times are seeing the back of the disk
+                // wrapped around the black hole - these should be BRIGHT
+                float lensBoost = 1.0;
+
+                if (crossedEquator) {
+                    // How steep is the crossing? Shallower = more tangent = brighter
+                    float crossingAngle = abs(prevTheta - theta);
+                    float tangentFactor = smoothstep(0.15, 0.005, crossingAngle);
+
+                    // Significant boost for tangent crossings
+                    lensBoost = 1.0 + tangentFactor * 4.0;
+
+                    // Extra boost if this isn't the first crossing (back side of disk)
+                    if (totalPhiChange > PI * 0.5) {
+                        lensBoost *= 1.5;  // Lensed light from back
+                    }
+                }
+
+                // Inner edge is very bright
+                float innerBoost = 1.0 + smoothstep(u_diskOuterRadius * 0.4, u_diskInnerRadius, r) * 2.5;
 
                 // Accumulate with front-to-back compositing
                 float alpha = opticalDepth * (1.0 - diskAlpha);
-                diskColor += emission * alpha;
-                diskAlpha += alpha;
+                alpha = min(alpha, 0.95);  // Prevent complete opacity
+
+                diskColor += emission * alpha * lensBoost * innerBoost;
+                diskAlpha += alpha * 0.8;  // Slight transparency to see layers
             }
         }
 
@@ -431,14 +381,32 @@ vec4 rayMarch(vec3 rayOrigin, vec3 rayDir) {
         photonRingColor = calculatePhotonRing(minRadius, numOrbits, M, a);
     }
 
+    // Add dramatic inner glow at the shadow edge
+    // This creates the "light spilling over" effect at the event horizon boundary
+    float rH = eventHorizonRadius(M, a);
+    vec3 shadowEdgeGlow = vec3(0.0);
+    if (result == RAY_CAPTURED && minRadius < rH * 1.5) {
+        // Ray was captured but got close to horizon edge
+        float edgeProximity = (minRadius - rH) / (rH * 0.5);
+        if (edgeProximity > 0.0 && edgeProximity < 1.0) {
+            float glowIntensity = pow(1.0 - edgeProximity, 3.0) * 2.0;
+            vec3 glowColor = vec3(1.0, 0.6, 0.3); // Orange glow at shadow edge
+            shadowEdgeGlow = glowColor * glowIntensity;
+        }
+    }
+
     // Composite all layers (back to front):
     // 1. Background (starfield or black)
-    // 2. Ergosphere glow
-    // 3. Jets
-    // 4. Photon ring
-    // 5. Accretion disk
+    // 2. Shadow edge glow
+    // 3. Ergosphere glow
+    // 4. Jets
+    // 5. Photon ring
+    // 6. Accretion disk
 
     vec3 finalColor = backgroundColor;
+
+    // Add shadow edge glow (for rays that just barely got captured)
+    finalColor += shadowEdgeGlow;
 
     // Add ergosphere visualization
     finalColor += ergoColor;
@@ -525,6 +493,36 @@ vec3 addDebugOverlays(vec3 color, vec3 rayOrigin, vec3 rayDir) {
 }
 
 // ============================================================================
+// Post-Processing Effects
+// ============================================================================
+
+/**
+ * Glow effect for bright areas (disk and photon ring)
+ */
+vec3 applyGlow(vec3 color, float intensity) {
+    float brightness = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    float glowThreshold = 0.6;
+
+    if (brightness > glowThreshold) {
+        float glowAmount = (brightness - glowThreshold) / (1.0 - glowThreshold);
+        glowAmount = pow(glowAmount, 0.7);
+        color += color * glowAmount * intensity;
+    }
+
+    return color;
+}
+
+/**
+ * Subtle vignette - very light darkening at edges
+ */
+vec3 applyVignette(vec3 color, vec2 uv, float strength) {
+    vec2 center = uv - 0.5;
+    float dist = length(center);
+    float vignette = 1.0 - smoothstep(0.5, 1.0, dist) * strength;
+    return color * vignette;
+}
+
+// ============================================================================
 // Main
 // ============================================================================
 
@@ -547,9 +545,24 @@ void main() {
     // Add debug overlays if enabled
     color = addDebugOverlays(color, u_cameraPos, rayDir);
 
-    // Tone mapping and gamma correction
+    // Apply glow to bright areas (disk, photon ring)
+    color = applyGlow(color, 0.4);
+
+    // Very subtle vignette
+    color = applyVignette(color, v_uv, 0.15);
+
+    // Tone mapping - preserve deep blacks while handling bright areas
     color = toneMapACES(color);
+
+    // Gamma correction
     color = gammaCorrect(color, 2.2);
 
-    fragColor = vec4(color, 1.0);
+    // Slight saturation boost for the orange colors
+    float luminance = dot(color, vec3(0.2126, 0.7152, 0.0722));
+    color = mix(vec3(luminance), color, 1.1);
+
+    // Ensure deep blacks stay black
+    color = max(color, vec3(0.0));
+
+    fragColor = vec4(clamp(color, 0.0, 1.0), 1.0);
 }

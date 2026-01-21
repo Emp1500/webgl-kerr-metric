@@ -366,7 +366,7 @@ vec3 sampleAdvancedFeatures(
 
 /**
  * Calculate photon ring contribution for a ray
- * Called after geodesic integration completes
+ * Creates the bright thin ring at the shadow edge seen in NASA visualizations
  *
  * @param minRadius Minimum radius the ray reached
  * @param numOrbits Approximate number of orbits around BH
@@ -380,19 +380,45 @@ vec3 calculatePhotonRing(float minRadius, float numOrbits, float M, float a) {
 
     // Only contributes if ray got close to photon sphere
     float proximity = (minRadius - rH) / (rPh - rH);
-    if (proximity < 0.0 || proximity > 2.0) {
+    if (proximity < 0.0 || proximity > 4.0) {
         return vec3(0.0);
     }
 
-    // Intensity based on how close to critical orbit
     float criticalProximity = abs(minRadius - rPh) / M;
-    float intensity = exp(-criticalProximity * 5.0);
 
-    // Boost for multiple orbits
-    intensity *= (1.0 + numOrbits * 0.5);
+    // === SHARP INNER RING (the bright arc at shadow edge) ===
+    // Very sharp, bright ring right at the photon sphere
+    float sharpRing = exp(-pow(criticalProximity * 8.0, 2.0)) * 5.0;
 
-    // Photon ring is bright white-blue
-    vec3 color = vec3(0.9, 0.95, 1.0) * intensity * 0.3;
+    // === SECONDARY RING ===
+    float secondaryRing = exp(-pow(criticalProximity * 4.0, 2.0)) * 2.0;
+
+    // === SOFT OUTER GLOW ===
+    float softGlow = exp(-criticalProximity * 2.0) * 0.8;
+
+    float intensity = sharpRing + secondaryRing + softGlow;
+
+    // Boost significantly for rays that orbited (lensed light from back of disk)
+    intensity *= (1.0 + numOrbits * 2.5);
+
+    // Extra boost very close to shadow edge
+    float edgeBoost = smoothstep(rH * 1.4, rH * 1.02, minRadius) * 4.0;
+    intensity += edgeBoost;
+
+    // === COLORS - Match the orange-red disk palette ===
+    vec3 brightColor = vec3(1.0, 0.8, 0.4);    // Bright yellow-orange
+    vec3 warmColor = vec3(1.0, 0.5, 0.1);      // Orange
+    vec3 deepColor = vec3(0.9, 0.3, 0.05);     // Deep orange-red
+
+    vec3 color = brightColor * (sharpRing + edgeBoost) +
+                 warmColor * secondaryRing +
+                 deepColor * softGlow;
+
+    // Normalize
+    float totalIntensity = sharpRing + secondaryRing + softGlow + edgeBoost;
+    if (totalIntensity > 0.01) {
+        color = color / totalIntensity * intensity;
+    }
 
     return color;
 }

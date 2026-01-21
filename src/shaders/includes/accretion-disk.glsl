@@ -227,13 +227,14 @@ float orbitalVelocity(float r, float theta, float M, float a) {
 
 /**
  * Calculate the Doppler factor g for a disk element
+ * Enhanced for M87-style asymmetric brightness
  *
  * g = 1 / [γ(1 - v·n̂)]
  *
  * where γ = 1/√(1-v²), v is orbital velocity, n̂ is direction to observer
  *
- * g > 1: blue-shifted (approaching)
- * g < 1: red-shifted (receding)
+ * g > 1: blue-shifted (approaching) - BRIGHTER
+ * g < 1: red-shifted (receding) - DIMMER
  */
 float dopplerFactor(
     float r, float theta, float phi,
@@ -250,8 +251,11 @@ float dopplerFactor(
     // = (-sin(phi), cos(phi), 0) for equatorial orbit
     vec3 velDir = vec3(-sinPhi, cosPhi, 0.0);
 
-    // Orbital velocity magnitude
+    // Orbital velocity magnitude - enhanced for more dramatic effect
     float v = orbitalVelocity(r, theta, M, a);
+
+    // Boost velocity effect for more pronounced asymmetry (like M87)
+    v = min(v * 1.2, 0.95);
 
     // Velocity vector
     vec3 velocity = v * velDir;
@@ -266,10 +270,18 @@ float dopplerFactor(
     // Lorentz factor
     float gamma = 1.0 / sqrt(1.0 - v * v + EPSILON);
 
-    // Doppler factor
+    // Doppler factor with enhanced effect
     float g = 1.0 / (gamma * (1.0 - vRadial));
 
-    return clamp(g, 0.1, 10.0);  // Clamp for numerical stability
+    // Enhance the asymmetry - make approaching side much brighter
+    // This creates the M87-style one-sided brightness
+    if (g > 1.0) {
+        g = pow(g, 1.3);  // Boost approaching side more
+    } else {
+        g = pow(g, 0.8);  // Don't dim receding side too much
+    }
+
+    return clamp(g, 0.15, 8.0);
 }
 
 /**
@@ -314,10 +326,10 @@ float relativisticFactor(
 /**
  * Calculate disk emission color and intensity
  *
- * Uses blackbody emission with relativistic corrections:
- * - Temperature from Novikov-Thorne model
- * - Color shifted by Doppler effect
- * - Intensity boosted by g^4
+ * Scientifically-inspired visualization with:
+ * - Pronounced concentric ring structure
+ * - Orange-red color palette like NASA visualizations
+ * - Strong brightness variations for visual appeal
  */
 vec3 diskEmission(
     float r, float theta, float phi,
@@ -338,37 +350,82 @@ vec3 diskEmission(
         return vec3(0.0);
     }
 
-    // Calculate relativistic factor
+    // Calculate relativistic factor for Doppler effect
     float g = relativisticFactor(r, theta, phi, rayDir, M, a);
 
-    // Observed temperature is shifted by Doppler factor
-    float Tobs = T * g;
+    // Radial position normalized 0 (inner) to 1 (outer)
+    float normalizedR = (r - innerRadius) / (outerRadius - innerRadius);
 
-    // Convert to RGB color
-    vec3 color = temperatureToRGB(Tobs);
+    // === CONCENTRIC RING STRUCTURE ===
+    // Multiple ring frequencies for complex banding pattern
+    float ringPattern = 0.0;
 
-    // Intensity scaling:
-    // - Blackbody intensity ∝ T^4
-    // - Relativistic beaming ∝ g^4
-    // Combined: Iobs ∝ (T*g)^4 / T^4 = g^4 * original intensity
+    // Primary rings - wide bands
+    ringPattern += sin(r * 2.5) * 0.3;
 
-    // Base intensity from temperature (normalized)
-    float intensity = pow(T / T0, 4.0);
+    // Secondary rings - medium bands
+    ringPattern += sin(r * 5.0 + 0.5) * 0.25;
 
-    // Apply relativistic beaming
+    // Tertiary rings - fine detail
+    ringPattern += sin(r * 12.0) * 0.15;
+
+    // Very fine rings near inner edge
+    float innerRings = sin(r * 25.0) * 0.1 * (1.0 - normalizedR);
+    ringPattern += innerRings;
+
+    // Normalize ring pattern to 0.5-1.5 range
+    float ringIntensity = 1.0 + ringPattern;
+
+    // === COLOR PALETTE (Orange-Red like NASA viz) ===
+    // Bright yellow-white core -> orange -> deep red outer
+    vec3 coreColor = vec3(1.0, 0.95, 0.7);     // Bright yellow-white
+    vec3 hotColor = vec3(1.0, 0.6, 0.1);       // Hot orange
+    vec3 warmColor = vec3(0.95, 0.35, 0.05);   // Warm orange-red
+    vec3 coolColor = vec3(0.6, 0.15, 0.02);    // Deep red at edge
+
+    vec3 diskColor;
+    if (normalizedR < 0.1) {
+        diskColor = mix(coreColor, hotColor, normalizedR / 0.1);
+    } else if (normalizedR < 0.35) {
+        diskColor = mix(hotColor, warmColor, (normalizedR - 0.1) / 0.25);
+    } else if (normalizedR < 0.7) {
+        diskColor = mix(warmColor, coolColor, (normalizedR - 0.35) / 0.35);
+    } else {
+        diskColor = coolColor;
+    }
+
+    // === INTENSITY CALCULATION ===
+    float intensity = 1.0;
+
+    // Temperature-based intensity
+    intensity *= pow(T / T0, 2.0);
+
+    // Relativistic beaming (g^4 effect)
     float g4 = g * g * g * g;
     intensity *= g4;
 
-    // Radial falloff (dimmer at outer edges)
-    float radialFalloff = sqrt(innerRadius / r);
+    // Apply ring pattern
+    intensity *= ringIntensity;
 
-    // Final intensity
-    intensity *= radialFalloff;
+    // Bright inner edge glow
+    float innerGlow = exp(-pow((r - innerRadius) / (1.0 * M), 2.0)) * 3.0;
+    intensity += innerGlow;
 
-    // Clamp for display
-    intensity = clamp(intensity, 0.0, 10.0);
+    // Radial profile - brighter inner, dimmer outer but not too much
+    float radialProfile = mix(1.5, 0.4, pow(normalizedR, 0.6));
+    intensity *= radialProfile;
 
-    return color * intensity;
+    // Subtle azimuthal variation (spiral structure hint)
+    float spiral = 0.9 + 0.1 * sin(phi * 3.0 + log(r) * 2.0);
+    intensity *= spiral;
+
+    // Overall brightness
+    intensity *= 2.5;
+
+    // Clamp
+    intensity = clamp(intensity, 0.0, 15.0);
+
+    return diskColor * intensity;
 }
 
 /**

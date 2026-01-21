@@ -3,7 +3,8 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Kerr Black Hole Simulation</title>
+    <title>Black Hole - Kerr Spacetime Visualization</title>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@300;400;500;600;700&family=Orbitron:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
     <style>
         * {
             margin: 0;
@@ -16,65 +17,380 @@
             height: 100%;
             overflow: hidden;
             background: #000;
+            font-family: 'Space Grotesk', sans-serif;
         }
 
         #canvas {
             width: 100%;
             height: 100%;
             display: block;
+            position: absolute;
+            top: 0;
+            left: 0;
+            z-index: 1;
         }
 
-        #loading {
+        /* Landing Page Overlay */
+        #landing-overlay {
             position: fixed;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            color: #fff;
-            font-family: 'Courier New', monospace;
-            font-size: 14px;
-            text-align: center;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            z-index: 10;
+            display: flex;
+            align-items: center;
+            pointer-events: none;
+            transition: opacity 1.5s ease-out;
         }
 
-        #loading.hidden {
+        #landing-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #landing-overlay.removed {
             display: none;
         }
 
+        /* Left side content */
+        .landing-content {
+            width: 50%;
+            padding: 60px;
+            padding-left: 8%;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            z-index: 11;
+        }
+
+        /* Main title */
+        .title-container {
+            margin-bottom: 30px;
+        }
+
+        .main-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: clamp(48px, 8vw, 120px);
+            font-weight: 700;
+            color: #fff;
+            letter-spacing: 8px;
+            text-transform: uppercase;
+            line-height: 1.1;
+            text-shadow:
+                0 0 40px rgba(255, 140, 50, 0.5),
+                0 0 80px rgba(255, 100, 30, 0.3),
+                0 0 120px rgba(255, 80, 20, 0.2);
+        }
+
+        .subtitle {
+            font-family: 'Space Grotesk', sans-serif;
+            font-size: clamp(14px, 2vw, 20px);
+            font-weight: 300;
+            color: rgba(255, 255, 255, 0.6);
+            letter-spacing: 4px;
+            text-transform: uppercase;
+            margin-top: 15px;
+        }
+
+        /* Description */
+        .description {
+            font-size: clamp(14px, 1.5vw, 18px);
+            color: rgba(255, 255, 255, 0.5);
+            line-height: 1.8;
+            max-width: 500px;
+            margin-bottom: 50px;
+        }
+
+        /* Start instruction */
+        .start-instruction {
+            display: flex;
+            align-items: center;
+            gap: 20px;
+            pointer-events: auto;
+        }
+
+        .key-hint {
+            display: flex;
+            align-items: center;
+            gap: 15px;
+            padding: 15px 30px;
+            background: rgba(255, 140, 50, 0.1);
+            border: 1px solid rgba(255, 140, 50, 0.3);
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .key-hint:hover {
+            background: rgba(255, 140, 50, 0.2);
+            border-color: rgba(255, 140, 50, 0.5);
+            transform: translateX(5px);
+        }
+
+        .key-box {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(135deg, rgba(255, 140, 50, 0.3), rgba(255, 100, 30, 0.2));
+            border: 2px solid rgba(255, 140, 50, 0.6);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            font-weight: 700;
+            color: #ff8c32;
+            text-shadow: 0 0 20px rgba(255, 140, 50, 0.8);
+        }
+
+        .key-text {
+            font-size: 16px;
+            color: rgba(255, 255, 255, 0.8);
+            font-weight: 400;
+        }
+
+        .key-text span {
+            display: block;
+            font-size: 12px;
+            color: rgba(255, 255, 255, 0.4);
+            margin-top: 4px;
+        }
+
+        /* Decorative line */
+        .accent-line {
+            width: 80px;
+            height: 3px;
+            background: linear-gradient(90deg, #ff8c32, transparent);
+            margin-bottom: 30px;
+            border-radius: 2px;
+        }
+
+        /* Right side gradient overlay for smooth blend */
+        .right-fade {
+            position: absolute;
+            top: 0;
+            left: 40%;
+            width: 20%;
+            height: 100%;
+            background: linear-gradient(90deg, rgba(0,0,0,0.95) 0%, rgba(0,0,0,0) 100%);
+            pointer-events: none;
+            z-index: 5;
+        }
+
+        /* Loading screen */
+        #loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: #000;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 100;
+            transition: opacity 0.8s ease-out;
+        }
+
+        #loading.hidden {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        #loading.removed {
+            display: none;
+        }
+
+        .loading-title {
+            font-family: 'Orbitron', sans-serif;
+            font-size: 24px;
+            color: #ff8c32;
+            letter-spacing: 4px;
+            margin-bottom: 30px;
+        }
+
+        .loading-spinner {
+            width: 60px;
+            height: 60px;
+            border: 3px solid rgba(255, 140, 50, 0.1);
+            border-top-color: #ff8c32;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .loading-text {
+            margin-top: 20px;
+            color: rgba(255, 255, 255, 0.5);
+            font-size: 14px;
+        }
+
+        /* Error display */
         #error {
             position: fixed;
             top: 50%;
             left: 50%;
             transform: translate(-50%, -50%);
             color: #ff4444;
-            font-family: 'Courier New', monospace;
+            font-family: 'Space Grotesk', sans-serif;
             font-size: 14px;
             text-align: center;
             max-width: 80%;
             display: none;
+            z-index: 200;
         }
 
         #error.visible {
             display: block;
         }
 
+        /* Info overlay (bottom left) */
         #info {
             position: fixed;
             bottom: 20px;
             left: 20px;
-            color: rgba(255, 255, 255, 0.7);
-            font-family: 'Courier New', monospace;
+            color: rgba(255, 255, 255, 0.5);
+            font-family: 'Space Grotesk', sans-serif;
             font-size: 12px;
             pointer-events: none;
+            z-index: 15;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+        }
+
+        #info.visible {
+            opacity: 1;
+        }
+
+        /* Tour active state - hide landing */
+        body.tour-active #landing-overlay {
+            opacity: 0;
+            pointer-events: none;
+        }
+
+        /* Responsive adjustments */
+        @media (max-width: 1024px) {
+            .landing-content {
+                width: 60%;
+                padding: 40px;
+                padding-left: 5%;
+            }
+
+            .right-fade {
+                left: 50%;
+            }
+        }
+
+        @media (max-width: 768px) {
+            .landing-content {
+                width: 100%;
+                padding: 30px;
+                background: linear-gradient(180deg, rgba(0,0,0,0.9) 0%, rgba(0,0,0,0.7) 50%, transparent 100%);
+                justify-content: flex-start;
+                padding-top: 80px;
+            }
+
+            .right-fade {
+                display: none;
+            }
+
+            .main-title {
+                font-size: 36px;
+            }
         }
     </style>
 </head>
 <body>
+    <!-- Loading Screen -->
+    <div id="loading">
+        <div class="loading-title">BLACK HOLE</div>
+        <div class="loading-spinner"></div>
+        <div class="loading-text">Initializing spacetime simulation...</div>
+    </div>
+
+    <!-- Main Canvas -->
     <canvas id="canvas"></canvas>
-    <div id="loading">Initializing Kerr Black Hole Simulation...</div>
+
+    <!-- Landing Page Overlay -->
+    <div id="landing-overlay">
+        <div class="right-fade"></div>
+        <div class="landing-content">
+            <div class="accent-line"></div>
+            <div class="title-container">
+                <h1 class="main-title">Black<br>Hole</h1>
+                <p class="subtitle">Kerr Spacetime Visualization</p>
+            </div>
+            <p class="description">
+                Experience a scientifically accurate simulation of a rotating black hole.
+                Witness gravitational lensing, the glowing accretion disk, and the dark shadow
+                of the event horizon.
+            </p>
+            <div class="start-instruction">
+                <div class="key-hint" id="start-tour-btn">
+                    <div class="key-box">T</div>
+                    <div class="key-text">
+                        Start Tour
+                        <span>Press T to begin the experience</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Error Display -->
     <div id="error"></div>
+
+    <!-- Info Overlay -->
     <div id="info">
         <div id="fps"></div>
         <div id="params"></div>
     </div>
+
     <script type="module" src="src/main.js"></script>
+
+    <script>
+        // Handle tour button click
+        document.getElementById('start-tour-btn').addEventListener('click', function() {
+            // Simulate 'T' key press to start tour
+            const event = new KeyboardEvent('keydown', {
+                key: 't',
+                code: 'KeyT',
+                keyCode: 84,
+                which: 84,
+                bubbles: true
+            });
+            document.dispatchEvent(event);
+        });
+
+        // Listen for tour start to fade out landing overlay
+        window.addEventListener('tourStarted', function() {
+            const overlay = document.getElementById('landing-overlay');
+            const info = document.getElementById('info');
+            document.body.classList.add('tour-active');
+            overlay.classList.add('hidden');
+            info.classList.add('visible');
+
+            // Remove from DOM after transition
+            setTimeout(() => {
+                overlay.classList.add('removed');
+            }, 1500);
+        });
+
+        // Also allow clicking anywhere on the right side to start
+        document.addEventListener('keydown', function(e) {
+            if (e.key.toLowerCase() === 't' || e.key === 'Escape') {
+                const overlay = document.getElementById('landing-overlay');
+                if (!overlay.classList.contains('hidden')) {
+                    // Dispatch custom event so main.js knows tour should start
+                    window.dispatchEvent(new CustomEvent('tourStarted'));
+                }
+            }
+        });
+    </script>
 </body>
 </html>

@@ -9,12 +9,12 @@ export const defaultParams = {
         spin: 0.9,           // Spin parameter a/M (0 = Schwarzschild, 1 = extremal Kerr)
     },
 
-    // Camera parameters
+    // Camera parameters - edge-on view to show gravitational lensing
     camera: {
-        distance: 15.0,      // Distance from black hole in units of M
-        theta: Math.PI / 3,  // Polar angle (radians from pole, π/2 = equatorial)
+        distance: 25.0,      // Distance from black hole in units of M
+        theta: Math.PI / 2.3, // Slightly above equator for dramatic disk-wrapping view
         phi: 0.0,            // Azimuthal angle
-        fov: 60.0,           // Field of view in degrees
+        fov: 45.0,           // Narrower FOV for cinematic view
     },
 
     // Ray marching parameters
@@ -34,13 +34,13 @@ export const defaultParams = {
         maxSteps: 800,       // Maximum integration steps per ray
     },
 
-    // Accretion disk parameters (Phase 3)
+    // Accretion disk parameters (Phase 3) - NASA visualization style
     accretionDisk: {
         enabled: true,       // Enable/disable disk rendering
         innerRadius: null,   // Will be set to ISCO automatically
-        outerRadius: 15.0,   // Outer edge in units of M
-        temperature: 1e7,    // Peak temperature in Kelvin (10 million K)
-        thickness: 0.05,     // Disk half-thickness ratio (h/r)
+        outerRadius: 25.0,   // Outer edge in units of M (wide disk for dramatic effect)
+        temperature: 3e7,    // Peak temperature in Kelvin (30 million K for bright disk)
+        thickness: 0.02,     // Disk half-thickness ratio (h/r) - very thin for sharp rings
     },
 
     // Rendering parameters
@@ -158,6 +158,7 @@ export const qualityPresets = {
  */
 export function getQualityLevels() {
     return ['ultra', 'high', 'medium', 'low', 'potato'];
+}
 
 /**
  * Create a copy of params with custom overrides

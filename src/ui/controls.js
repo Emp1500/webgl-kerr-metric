@@ -59,6 +59,8 @@ export class ControlsManager {
                         if (this.annotationManager) {
                             this.annotationManager.show();
                         }
+                        // Dispatch event for landing page to fade out
+                        window.dispatchEvent(new CustomEvent('tourStarted'));
                     }
                     break;
 
